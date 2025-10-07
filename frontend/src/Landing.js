@@ -205,7 +205,7 @@ export default function Landing() {
             Get insights, set budgets, and take control of your financial life.
           </p>
           <div className="hero-buttons">
-            <button className="primary-btn" onClick={handleGetStarted}>
+            <button className="primary-btn" onClick={() => navigate("/register")}>
               Start Free Trial
             </button>
           </div>
