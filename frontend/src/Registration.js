@@ -64,27 +64,28 @@ export default function RegistrationPage() {
     if (!validate()) return;
 
     try {
-      const response = await fetch("http://localhost:8000/register/", {
+      const response = await fetch("http://localhost:8080/api/users/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          username: formData.name,
+          email: formData.email,
+          password: formData.password
+        }),
       });
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
       setSuccessMessage("Registration successful! You can now log in.");
-      setFormData({
-        name: "",
-        email: "",
-        password: "",
-      });
+      setFormData({ name: "", email: "", password: "" });
       setErrors({});
     } catch (error) {
       console.error("Registration error:", error);
       setSuccessMessage("Failed to register. Please try again.");
     }
   };
+
 
   const styles = {
     container: {

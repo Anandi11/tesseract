@@ -1,8 +1,6 @@
-// Dashboard.js
 import React, { useState, useEffect, useRef } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import Chart from "chart.js/auto";
-import ExpenseForm from "./ExpenseForm";
 import HomePage from "./HomePage";
 import HistoryPage from "./HistoryPage";
 import CalendarView from "./CalendarView";
@@ -10,25 +8,27 @@ import ConfirmModal from "./ConfirmModal";
 import { categoryColors } from "./constants";
 import "./style.css";
 import icon from "./icon.jpg";
+import axios from "axios";
 
-// ----------------------------
-// Layout Wrapper for Navigation
-// ----------------------------
+// Layout wrapper
 const Layout = ({ children, totalAmount, onReset }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isHome = location.pathname === "/dashboard" || location.pathname === "/dashboard/";
+  const isHome =
+    location.pathname === "/dashboard" || location.pathname === "/dashboard/";
 
   return (
     <div className="main-content">
       {isHome ? (
         <header className="main-header">
           <div className="header-left">
-            <img src={icon} className="header-icon" />
+            <img src={icon} className="header-icon" alt="logo" />
             <div>
               <h1 className="header-title">Tesseract</h1>
-              <p className="header-subtitle">Analyses your finances 4-Dimensionally</p>
+              <p className="header-subtitle">
+                Analyses your finances 4-Dimensionally
+              </p>
             </div>
           </div>
           <div className="header-right">
@@ -38,7 +38,10 @@ const Layout = ({ children, totalAmount, onReset }) => {
         </header>
       ) : (
         <header className="main-header">
-          <button onClick={() => navigate("/dashboard")} className="back-button">
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="back-button"
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="back-button-icon"
@@ -88,11 +91,8 @@ const Layout = ({ children, totalAmount, onReset }) => {
         >
           Calendar View
         </button>
-        <button
-            onClick={() => navigate("/")}
-            className="nav-button logout-button"
-        >
-            Logout
+        <button onClick={() => navigate("/")} className="nav-button logout-button">
+          Logout
         </button>
       </div>
 
@@ -101,9 +101,7 @@ const Layout = ({ children, totalAmount, onReset }) => {
   );
 };
 
-// ----------------------------
-// Dashboard Component
-// ----------------------------
+// Dashboard
 const Dashboard = () => {
   const [expenses, setExpenses] = useState([]);
   const [filteredCategory, setFilteredCategory] = useState(null);
@@ -113,18 +111,24 @@ const Dashboard = () => {
   const chartInstanceRef = useRef(null);
   const location = useLocation();
 
-  // Load expenses from localStorage
+  // Fetch expenses on mount
   useEffect(() => {
-    const storedExpenses = JSON.parse(localStorage.getItem("expenses") || "[]");
-    setExpenses(storedExpenses);
+    const userId = localStorage.getItem("userId");
+
+    if (!userId) {
+      console.error("User ID not found in localStorage");
+      return;
+    }
+
+    axios
+      .get(`http://localhost:8080/api/expenses/user/${userId}`)
+      .then((response) => setExpenses(response.data))
+      .catch((error) =>
+        console.error("Error fetching user-specific expenses:", error)
+      );
   }, []);
 
-  // Save expenses to localStorage
-  useEffect(() => {
-    localStorage.setItem("expenses", JSON.stringify(expenses));
-  }, [expenses]);
-
-  // Chart rendering logic
+  // Re-render pie chart whenever expenses or route changes
   useEffect(() => {
     if (location.pathname !== "/dashboard" && location.pathname !== "/dashboard/") {
       if (chartInstanceRef.current) {
@@ -139,12 +143,15 @@ const Dashboard = () => {
       chartInstanceRef.current = null;
     }
 
-    const categoryTotals = expenses.reduce((acc, expense) => {
-      const cat = expense.category;
-      const amt = parseFloat(expense.amount);
-      acc[cat] = acc[cat] ? acc[cat] + amt : amt;
-      return acc;
-    }, {});
+    const userId = localStorage.getItem("userId");
+    const categoryTotals = expenses
+      .filter((expense) => expense.user?.id?.toString() === userId)
+      .reduce((acc, expense) => {
+        const cat = expense.category;
+        const amt = parseFloat(expense.amount);
+        acc[cat] = acc[cat] ? acc[cat] + amt : amt;
+        return acc;
+      }, {});
 
     const labels = Object.keys(categoryTotals);
     const data = Object.values(categoryTotals);
@@ -154,12 +161,9 @@ const Dashboard = () => {
 
     if (labels.length > 0) {
       const ctx = chartRef.current.getContext("2d");
-      const newChart = new Chart(ctx, {
+      chartInstanceRef.current = new Chart(ctx, {
         type: "pie",
-        data: {
-          labels,
-          datasets: [{ data, backgroundColor: backgroundColors }],
-        },
+        data: { labels, datasets: [{ data, backgroundColor: backgroundColors }] },
         options: {
           responsive: true,
           plugins: {
@@ -181,15 +185,41 @@ const Dashboard = () => {
           },
         },
       });
-      chartInstanceRef.current = newChart;
     }
   }, [expenses, location]);
 
-  // Handlers
-  const addExpense = (newExpense) =>
-    setExpenses((prev) => [newExpense, ...prev]);
-  const deleteExpense = (id) =>
-    setExpenses((prev) => prev.filter((e) => e.id !== id));
+  // Add expense and update chart instantly
+  const handleAddExpense = async (expense) => {
+    const userId = localStorage.getItem("userId");
+    const expenseData = {
+      ...expense,
+      user: { id: userId },
+      date: new Date().toISOString().split("T")[0],
+    };
+
+    try {
+      const response = await axios.post(
+        "http://localhost:8080/api/expenses",
+        expenseData
+      );
+
+      // ✅ Update local state immediately so chart updates
+      setExpenses((prev) => [response.data, ...prev]);
+      console.log("Expense added and chart updated!");
+    } catch (error) {
+      console.error("Error adding expense:", error);
+    }
+  };
+
+  // Delete expense
+  const deleteExpense = async (id) => {
+    try {
+      await axios.delete(`http://localhost:8080/api/expenses/${id}`);
+      setExpenses((prev) => prev.filter((e) => e.id !== id));
+    } catch (error) {
+      console.error("Error deleting expense:", error);
+    }
+  };
 
   const resetData = () => setIsConfirmModalOpen(true);
   const confirmReset = () => {
@@ -207,11 +237,11 @@ const Dashboard = () => {
     <Layout totalAmount={totalAmount} onReset={resetData}>
       <Routes>
         <Route
-          path="/"
-          element={<HomePage onAddExpense={addExpense} chartRef={chartRef} />}
+          index
+          element={<HomePage onAddExpense={handleAddExpense} chartRef={chartRef} />}
         />
         <Route
-          path="/history"
+          path="history"
           element={
             <HistoryPage
               expenses={expenses}
@@ -222,7 +252,7 @@ const Dashboard = () => {
           }
         />
         <Route
-          path="/calendar"
+          path="calendar"
           element={
             <CalendarView
               expenses={expenses}

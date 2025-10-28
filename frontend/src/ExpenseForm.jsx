@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { categoryColors } from './constants';
 import Modal from './Modal';
+import axios from 'axios';
+// import { nav } from 'framer-motion/client';
 
 const ExpenseForm = ({ onAddExpense }) => {
     const [amount, setAmount] = useState('');
@@ -8,26 +10,40 @@ const ExpenseForm = ({ onAddExpense }) => {
     const [description, setDescription] = useState('');
     const [modalMessage, setModalMessage] = useState('');
 
-    const handleSubmit = (event) => {
+    const handleSubmit = async (event) => {
         event.preventDefault();
 
         if (!amount || !category) {
             setModalMessage("Please fill out both Amount and Category fields.");
             return;
         }
+        const userId = localStorage.getItem('userId');
 
         const newExpense = {
-            id: Date.now(),
             amount: parseFloat(amount),
             category: category,
             description: description,
-            timestamp: new Date().toISOString()
+            date: new Date().toISOString(),
+            user: { id: userId }
         };
 
-        onAddExpense(newExpense);
-        setAmount('');
-        setCategory('Food');
-        setDescription('');
+        try {
+            const response = await axios.post("http://localhost:8080/api/expenses/add", newExpense);
+            onAddExpense(response.data);
+
+            setAmount('');
+            setCategory('Food');
+            setDescription('');
+            // nav('/dashboard');
+        } catch (error) {
+            if (error.response) {
+                console.error("Backend error:", error.response.data);
+                setModalMessage(`Failed to save expense: ${error.response.data.message || "Server error"}`);
+            } else {
+                console.error("Network or other error:", error);
+                setModalMessage("Failed to save expense. Please check your connection.");
+            }
+        }
     };
 
     return (

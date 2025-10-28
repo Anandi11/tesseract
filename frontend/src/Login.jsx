@@ -36,7 +36,31 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
+  const handleLogin = async () => {
+    try {
+    const response = await fetch("http://localhost:8080/api/users/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!response.ok) {
+      throw new Error("Network response was not OK");
+    }
 
+    const data = await response.json();
+    console.log("Login response:", data);
+    if (data.message === "Login successful!") {
+      localStorage.setItem("userId", data.id);
+      localStorage.setItem("userEmail", data.email);
+      navigate("/dashboard");
+    } else {
+      alert("❌ " + data.message);
+    }
+  } catch (error) {
+    console.error("Login failed:", error);
+    alert("Something went wrong. Check console.");
+  }
+  };
   const styles = {
     container: {
       minHeight: '100vh',
@@ -329,7 +353,7 @@ export default function LoginPage() {
 
             {/* Sign In Button */}
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={() => handleLogin()}
               style={styles.signInButton}
               onMouseOver={(e) => e.target.style.backgroundColor = styles.signInButtonHover.backgroundColor}
               onMouseOut={(e) => e.target.style.backgroundColor = styles.signInButton.backgroundColor}
